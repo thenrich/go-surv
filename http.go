@@ -4,7 +4,7 @@ import (
 	"net/http"
 	"regexp"
 	"log"
-	"github.com/thenrich/gosurveil/video"
+	"github.com/thenrich/go-surv/video"
 )
 
 func NewHttpHandler(cs video.CameraStreamer) *HttpHandler {
