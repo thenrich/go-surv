@@ -9,6 +9,7 @@ import (
 	"log"
 	"os"
 	"os/signal"
+	"fmt"
 )
 
 func init() {
@@ -38,6 +39,7 @@ func main() {
 	if err != nil {
 		log.Fatal(err)
 	}
+	fmt.Println(cfg)
 
 	ch := video.NewCameraHandler()
 	for _, cam := range cfg.Cameras {

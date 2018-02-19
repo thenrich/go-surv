@@ -31,7 +31,7 @@ func NewStream(url string, max time.Duration) *Stream {
 	return &Stream{source: url, max: max, stills: make(chan *Still, 100)}
 }
 
-func (s *Stream) WithDst(dst string) (*Stream, error) {
+func (s *Stream) WithDest(dst string) (*Stream, error) {
 	dest, err := avutil.Create(dst)
 	if err != nil {
 		return nil, errors.Wrap(err, "error creating dest")
