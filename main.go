@@ -9,7 +9,10 @@ import (
 	"log"
 	"os"
 	"os/signal"
-	"fmt"
+	"github.com/aws/aws-sdk-go/aws/credentials"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/thenrich/go-surv/cloud"
+	"github.com/thenrich/go-surv/config"
 )
 
 func init() {
@@ -26,27 +29,23 @@ func init() {
 
 func main() {
 
-	config := flag.String("conf", "", "config file")
-	//dstfile := flag.String("dst", "output.mp4", "Output file")
-	//prefix := flag.String("snapdir", "stills", "Output directory for snapshots")
-	//snapfile := flag.String("snapfile", "out.jpg", "Single output snapshot")
-	//max := flag.Int("max", 5, "Max seconds")
+	conf := flag.String("conf", "", "config file")
 	flag.Parse()
 
-	//cfg := &Config{prefix: *prefix, snapfile: *snapfile}
-
-	cfg, err := parseConfig(*config)
+	cfg, err := config.ParseConfig(*conf)
 	if err != nil {
 		log.Fatal(err)
 	}
-	fmt.Println(cfg)
 
-	ch := video.NewCameraHandler()
+	if cfg.AWS.AccessKey != "" && cfg.AWS.SecretAccessKey != "" {
+		creds := credentials.NewStaticCredentials(cfg.AWS.AccessKey, cfg.AWS.SecretAccessKey, "")
+		awsCfg := aws.NewConfig().WithCredentials(creds).WithRegion(cfg.AWS.Region)
+		cloud.ConfigureS3(awsCfg)
+	}
+
+	ch := video.NewCameraHandler(cfg)
 	for _, cam := range cfg.Cameras {
-		ch.AddCamera(&video.Camera{
-			Name:      cam.Name,
-			SourceURL: cam.Source,
-		})
+		ch.AddCamera(video.NewCamera(cam.Name, cam.Source, cfg.StorageInterval))
 	}
 
 	log.Println("Start streams")

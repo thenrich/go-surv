@@ -4,9 +4,11 @@ import (
 	"time"
 	"log"
 	"github.com/pkg/errors"
+	"github.com/thenrich/go-surv/config"
 )
 
 type CameraStreamer interface {
+	// Camera should return a pointer to the named camera
 	Camera(name string) *Camera
 	StartStreams()
 }
@@ -20,13 +22,23 @@ type Camera struct {
 
 	// SourceURL defines the video source
 	SourceURL string
+
+	// interval to record
+	recordInterval time.Duration
+}
+
+func NewCamera(name string, source string, recordInterval time.Duration) *Camera {
+	return &Camera{Name: name, SourceURL: source, recordInterval: recordInterval}
 }
 
 type CameraHandler struct {
+	cfg *config.Config
+
 	// cameras we're monitoring
 	cameras map[string]*Camera
 
-	// streams for all cameras we're monitoring
+	// streams for all cameras we're monitoring, indexed by
+	// camera name
 	streams map[string]*Stream
 }
 
@@ -45,11 +57,9 @@ func (ch *CameraHandler) Camera(name string) *Camera {
 func (ch *CameraHandler) StartStreams() {
 	for _, cam := range ch.cameras {
 		log.Printf("Starting stream for %s", cam.Name)
-		stream, err := NewStream(cam.SourceURL, time.Minute).WithDst("out.mp4")
-		if err != nil {
-			log.Println(errors.Wrapf(err, "error starting stream for %s", cam))
-			continue
-		}
+		stream := NewStream(cam)
+		stream.AddWriter(NewS3Writer(cam.Name, cam.recordInterval, ch.cfg))
+
 		ch.streams[cam.Name] = stream
 
 		go func() {
@@ -77,6 +87,6 @@ func (ch *CameraHandler) CloseStreams() {
 	}
 }
 
-func NewCameraHandler() *CameraHandler {
-	return &CameraHandler{make(map[string]*Camera), make(map[string]*Stream)}
+func NewCameraHandler(cfg *config.Config) *CameraHandler {
+	return &CameraHandler{cfg, make(map[string]*Camera), make(map[string]*Stream)}
 }

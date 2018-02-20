@@ -1,10 +1,10 @@
-package main
+package config
 
 import (
-	"gopkg.in/yaml.v2"
-	"io/ioutil"
-	"github.com/pkg/errors"
 	"time"
+	"io/ioutil"
+	"gopkg.in/yaml.v2"
+	"github.com/pkg/errors"
 )
 
 type Config struct {
@@ -27,6 +27,9 @@ type Config struct {
 type AWSConfig struct {
 	// S3 bucket for storage
 	S3Bucket string `yaml:"s3bucket"`
+
+	// AWS Region
+	Region string `yaml:"region"`
 
 	// AWS creds
 	AccessKey       string `yaml:"accessKey"`

@@ -5,11 +5,8 @@ import (
 	"log"
 	"github.com/nareix/joy4/av"
 	"github.com/nareix/joy4/cgo/ffmpeg"
-	"time"
 	"github.com/pkg/errors"
 	"io"
-	"image/jpeg"
-	"bytes"
 )
 
 type Still struct {
@@ -17,27 +14,21 @@ type Still struct {
 }
 
 type Stream struct {
-	source string
-	max    time.Duration
+	cam *Camera
 
-	demuxer      av.Demuxer
-	dst          av.MuxCloser
+	demuxer      av.DemuxCloser
+	writers      []Writer
 	videoDecoder *ffmpeg.VideoDecoder
 
 	stills chan *Still
 }
 
-func NewStream(url string, max time.Duration) *Stream {
-	return &Stream{source: url, max: max, stills: make(chan *Still, 100)}
+func NewStream(cam *Camera) *Stream {
+	return &Stream{cam: cam, stills: make(chan *Still, 100)}
 }
 
-func (s *Stream) WithDest(dst string) (*Stream, error) {
-	dest, err := avutil.Create(dst)
-	if err != nil {
-		return nil, errors.Wrap(err, "error creating dest")
-	}
-	s.dst = dest
-	return s, nil
+func (s *Stream) AddWriter(w Writer) {
+	s.writers = append(s.writers, w)
 }
 
 func (s *Stream) Stills() chan *Still {
@@ -45,9 +36,9 @@ func (s *Stream) Stills() chan *Still {
 }
 
 func (s *Stream) openStream() error {
-	demux, err := avutil.Open(s.source)
+	demux, err := avutil.Open(s.cam.SourceURL)
 	if err != nil {
-		return errors.Wrapf(err, "error opening %s", s.source)
+		return errors.Wrapf(err, "error opening %s", s.cam.SourceURL)
 	}
 
 	s.demuxer = demux
@@ -55,9 +46,30 @@ func (s *Stream) openStream() error {
 	return nil
 }
 
-func (s *Stream) copy() error {
-	// create a video decoder for still images
-	lastStillTime := time.Duration(0)
+func (s *Stream) Stream() error {
+	// Open the camera source
+	s.openStream()
+
+	// Get a reference to the incoming video stream
+	var streams []av.CodecData
+	var err error
+	if streams, err = s.demuxer.Streams(); err != nil {
+		return errors.Wrap(err, "error getting streams")
+	}
+
+	// Setup still writer
+	still, err := NewStillWriter(streams, s.stills)
+	if err != nil {
+		log.Println(errors.Wrap(err, "error creating still writer"))
+	}
+	// add still writer to our slice of writers
+	s.writers = append(s.writers, still)
+
+	for id := range s.writers {
+		if err := s.writers[id].Open(streams); err != nil {
+			log.Println(errors.Wrap(err, "error opening still writer"))
+		}
+	}
 
 	// read packets
 	for {
@@ -71,81 +83,13 @@ func (s *Stream) copy() error {
 			return errors.Wrap(err, "error reading packet")
 		}
 
-		if s.max > 0 && pkt.Time >= s.max {
-			return nil
+		// Write packet to each writer
+		for id := range s.writers {
+			if err := s.writers[id].Write(pkt); err != nil {
+				log.Println(errors.Wrapf(err, "error writing packet to %s", s.writers[id]))
+			}
 		}
 
-		// Write to mp4
-		if err := s.dst.WritePacket(pkt); err != nil {
-			return errors.Wrap(err, "error writing packet")
-		}
-
-		frame, err := s.videoDecoder.Decode(pkt.Data)
-		if err != nil {
-			return errors.Wrap(err, "error decoding packet data")
-		}
-
-		if frame == nil {
-			continue
-		}
-
-		// get packet time
-		if lastStillTime == 0 {
-			lastStillTime = pkt.Time
-		}
-
-		if pkt.Time-lastStillTime < time.Duration(1*time.Second) {
-			continue
-		}
-
-		lastStillTime = pkt.Time
-
-		go encodeStill(frame, s.stills)
-
-	}
-
-	return nil
-}
-
-func (s *Stream) getVideoStreams() ([]av.CodecData, av.CodecData, error) {
-	var streams []av.CodecData
-	var err error
-	if streams, err = s.demuxer.Streams(); err != nil {
-		return nil, nil, errors.Wrap(err, "error getting streams")
-	}
-
-	vstream, err := extractVideoStream(streams)
-	if err != nil {
-		return nil, nil, errors.Wrap(err, "error locating video stream")
-	}
-
-	return streams, vstream, nil
-}
-
-func (s *Stream) Stream() error {
-	s.openStream()
-	allStreams, videoStream, err := s.getVideoStreams()
-	if err != nil {
-		return errors.Wrap(err, "error getting video stream")
-	}
-
-	// create a video decoder using the video stream
-	decoder, err := ffmpeg.NewVideoDecoder(videoStream)
-	if err != nil {
-		log.Fatal(err)
-	}
-
-	s.videoDecoder = decoder
-	if err := s.videoDecoder.Setup(); err != nil {
-		return errors.Wrap(err, "error setting up video decoder")
-	}
-
-	if err := s.dst.WriteHeader(allStreams); err != nil {
-		return errors.Wrap(err, "error writing header")
-	}
-
-	if err = s.copy(); err != nil {
-		log.Fatal(err)
 	}
 
 	s.Cleanup()
@@ -154,27 +98,13 @@ func (s *Stream) Stream() error {
 }
 
 func (s *Stream) Cleanup() {
-	if err := s.dst.WriteTrailer(); err != nil {
-		log.Fatal(err)
-	}
-}
-
-func encodeStill(frame *ffmpeg.VideoFrame, stills chan *Still) {
-	defer frame.Free()
-
-	var b bytes.Buffer
-	jpeg.Encode(&b, &frame.Image, nil)
-
-	stills <- &Still{b.Bytes()}
-
-}
-
-func extractVideoStream(streams []av.CodecData) (av.CodecData, error) {
-	for _, stream := range streams {
-		if stream.Type() == av.H264 {
-			return stream, nil
+	for id := range s.writers {
+		if err := s.writers[id].Close(); err != nil {
+			log.Println(errors.Wrapf(err, "error closing %s", s.writers[id]))
 		}
 	}
 
-	return nil, errors.New("no h264 stream")
+	if err := s.demuxer.Close(); err != nil {
+		log.Println(err)
+	}
 }
