@@ -1,21 +1,20 @@
-package main
+package cmd
 
 import (
 	"flag"
-	_ "image/jpeg"
-	"net/http"
-	"github.com/thenrich/go-surv/video"
+	"github.com/thenrich/go-surv/config"
 	"log"
 	"os"
 	"os/signal"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/thenrich/go-surv/cloud"
-	"github.com/thenrich/go-surv/config"
+	"github.com/thenrich/go-surv/video"
+	ghttp "github.com/thenrich/go-surv/http"
+	"net/http"
 )
 
 func main() {
-
 	conf := flag.String("conf", "", "config file")
 	flag.Parse()
 
@@ -49,6 +48,5 @@ func main() {
 		}
 	}()
 
-	http.ListenAndServe(":8080", NewHttpHandler(ch))
-
+	http.ListenAndServe(":8080", ghttp.NewHttpHandler(ch))
 }

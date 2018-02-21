@@ -81,7 +81,7 @@ func (s3 *S3Writer) Close() error {
 				return
 			}
 			defer f.Close()
-			key := fmt.Sprintf("%d-%s-%d/%s", s3.nextUploadTime.Year(), s3.nextUploadTime.Month(), s3.nextUploadTime.Day(), strings.Replace(s3.nextUploadFile, "/tmp", "", 1))
+			key := fmt.Sprintf("%d-%d-%d/%s", s3.nextUploadTime.Year(), s3.nextUploadTime.Month(), s3.nextUploadTime.Day(), strings.Replace(s3.nextUploadFile, "/tmp", "", 1))
 			result, err := s3.S3.Upload(&s3manager.UploadInput{
 				Bucket: aws.String(s3.Bucket),
 				Key:    aws.String(key),
