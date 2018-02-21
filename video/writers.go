@@ -11,40 +11,44 @@ import (
 	"time"
 	"log"
 
-	"github.com/aws/aws-sdk-go/service/s3/s3manager"
-	"github.com/thenrich/go-surv/cloud"
 	"os"
-	"github.com/aws/aws-sdk-go/aws"
 	"github.com/thenrich/go-surv/config"
 	"strings"
+	"io"
+	"image"
 )
 
+// Writer defines the interface for writing video packets
 type Writer interface {
 	Open(streams []av.CodecData) error
 	Write(writer av.Packet) error
 	Close() error
 }
 
-type S3Writer struct {
+// CloudWriter defines the interface for writing files to cloud providers
+type CloudWriter interface {
+	UploadFile(r io.ReadCloser, key string) error
+}
+
+type CloudStorage struct {
 	*LocalWriter
-	S3     *s3manager.Uploader
-	Bucket string
+	writer CloudWriter
 
 	nextUploadFile string
 	nextUploadTime time.Time
 }
 
-func (s3 *S3Writer) Write(pkt av.Packet) error {
-	if err := s3.LocalWriter.dst.WritePacket(pkt); err != nil {
+func (cs *CloudStorage) Write(pkt av.Packet) error {
+	if err := cs.LocalWriter.dst.WritePacket(pkt); err != nil {
 		return errors.Wrap(err, "error writing packet to local writer")
 	}
 
-	if s3.nextRotation.Before(time.Now().UTC()) {
+	if cs.nextRotation.Before(time.Now().UTC()) {
 		log.Println("Time to rotate")
 		// Set file to upload
-		s3.nextUploadFile = s3.outfile
-		s3.nextUploadTime = s3.now
-		if err := s3.rotate(); err != nil {
+		cs.nextUploadFile = cs.outfile
+		cs.nextUploadTime = cs.now
+		if err := cs.rotate(); err != nil {
 			log.Println(errors.Wrap(err, "error rotating"))
 		}
 	}
@@ -53,48 +57,42 @@ func (s3 *S3Writer) Write(pkt av.Packet) error {
 }
 
 // Rotate closes the local writer and reopens it at the current time
-func (s3 *S3Writer) rotate() error {
-	if err := s3.Close(); err != nil {
+func (cs *CloudStorage) rotate() error {
+	if err := cs.Close(); err != nil {
 		return errors.Wrap(err, "rotate: error closing local writer")
 	}
 
-	if err := s3.Open(nil); err != nil {
+	if err := cs.Open(nil); err != nil {
 		return errors.Wrap(err, "rotate: error opening new local writer")
 	}
 
-	s3.nextRotation = time.Now().UTC().Add(s3.duration)
+	cs.nextRotation = time.Now().UTC().Add(cs.duration)
 
 	return nil
 }
 
 // Close begins uploading completed file to S3
-func (s3 *S3Writer) Close() error {
-	if err := s3.LocalWriter.Close(); err != nil {
+func (cs *CloudStorage) Close() error {
+	if err := cs.LocalWriter.Close(); err != nil {
 		log.Println(errors.Wrap(err, "error closing file in s3 writer"))
 	}
 
-	if s3.nextUploadFile != "" {
+	if cs.nextUploadFile != "" {
 		go func() {
-			f, err := os.Open(s3.nextUploadFile)
+			f, err := os.Open(cs.nextUploadFile)
 			if err != nil {
 				log.Println(err)
 				return
 			}
 			defer f.Close()
-			key := fmt.Sprintf("%d-%d-%d/%s", s3.nextUploadTime.Year(), s3.nextUploadTime.Month(), s3.nextUploadTime.Day(), strings.Replace(s3.nextUploadFile, "/tmp", "", 1))
-			result, err := s3.S3.Upload(&s3manager.UploadInput{
-				Bucket: aws.String(s3.Bucket),
-				Key:    aws.String(key),
-				Body:   f,
-			})
+			key := fmt.Sprintf("%d-%d-%d/%s", cs.nextUploadTime.Year(), cs.nextUploadTime.Month(), cs.nextUploadTime.Day(), strings.Replace(cs.nextUploadFile, "/tmp", "", 1))
+			err = cs.writer.UploadFile(f, key)
 			if err != nil {
 				log.Println(err)
-				return
 			}
-			log.Println(result.Location)
 			// Copy our reference to the filename so we can clear nextUploadFile
-			deleteFile := s3.nextUploadFile
-			s3.nextUploadFile = ""
+			deleteFile := cs.nextUploadFile
+			cs.nextUploadFile = ""
 			if err := os.Remove(deleteFile); err != nil {
 				log.Println(err)
 				return
@@ -106,9 +104,9 @@ func (s3 *S3Writer) Close() error {
 	return nil
 }
 
-func NewS3Writer(name string, interval time.Duration, cfg *config.Config) *S3Writer {
+func NewCloudStorage(name string, interval time.Duration, cfg *config.Config, cloud CloudWriter) *CloudStorage {
 	localPath := fmt.Sprintf("/tmp/%s", name)
-	return &S3Writer{LocalWriter: NewLocalWriter(localPath, interval), S3: cloud.Uploader(), Bucket: cfg.AWS.S3Bucket}
+	return &CloudStorage{LocalWriter: NewLocalWriter(localPath, interval), writer: cloud}
 }
 
 type LocalWriter struct {
@@ -214,6 +212,7 @@ func (sw *StillWriter) Close() error {
 
 func (sw *StillWriter) Write(pkt av.Packet) error {
 	frame, err := sw.videoDecoder.Decode(pkt.Data)
+
 	if err != nil {
 		return errors.Wrap(err, "error decoding packet data")
 	}
@@ -221,6 +220,8 @@ func (sw *StillWriter) Write(pkt av.Packet) error {
 	if frame == nil {
 		return nil
 	}
+
+	defer frame.Free()
 
 	// get packet time
 	if sw.lastStill == 0 {
@@ -232,17 +233,16 @@ func (sw *StillWriter) Write(pkt av.Packet) error {
 	}
 
 	sw.lastStill = pkt.Time
+	img := frame.Image
 
-	go sw.encodeStill(frame)
+	go sw.encodeStill(&img)
 
 	return nil
 }
 
-func (sw *StillWriter) encodeStill(frame *ffmpeg.VideoFrame) {
-	defer frame.Free()
-
+func (sw *StillWriter) encodeStill(img image.Image) {
 	var b bytes.Buffer
-	jpeg.Encode(&b, &frame.Image, nil)
+	jpeg.Encode(&b, img, nil)
 
 	sw.stills <- &Still{b.Bytes()}
 

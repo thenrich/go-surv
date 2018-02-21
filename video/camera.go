@@ -5,8 +5,8 @@ import (
 	"log"
 	"github.com/pkg/errors"
 	"github.com/thenrich/go-surv/config"
+	"github.com/thenrich/go-surv/cloud/aws"
 )
-
 
 // CameraStreamer defines the behavior for camera handlers
 type CameraStreamer interface {
@@ -44,6 +44,7 @@ type CameraHandler struct {
 }
 
 func (ch *CameraHandler) AddCamera(cam *Camera) {
+	log.Printf("Add camera %s %s", cam.Name, cam.SourceURL)
 	ch.cameras[cam.Name] = cam
 }
 
@@ -64,25 +65,28 @@ func (ch *CameraHandler) StartStreams() {
 			if !ch.cfg.AWS.Ready() {
 				log.Fatal("Missing AWS configuration")
 			}
-			stream.AddWriter(NewS3Writer(cam.Name, cam.recordInterval, ch.cfg))
+			cw := aws.NewS3Storage(ch.cfg.AWS, ch.cfg.AWS.S3Bucket)
+			stream.AddWriter(NewCloudStorage(cam.Name, cam.recordInterval, ch.cfg, cw))
 		}
 
 		ch.streams[cam.Name] = stream
 
-		go func() {
+		go func(stream *Stream) {
 			err := stream.Stream()
 			if err != nil {
 				log.Println(errors.Wrapf(err, "error from stream"))
 			}
-		}()
-		go func() {
+		}(stream)
+
+		go func(stream *Stream, cam *Camera) {
 			for {
 				select {
 				case s := <-stream.Stills():
+					log.Printf("send still for %s", cam.Name)
 					cam.LatestImage = s.imgData
 				}
 			}
-		}()
+		}(stream, cam)
 
 	}
 }

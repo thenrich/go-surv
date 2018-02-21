@@ -100,10 +100,11 @@ func (s *Stream) Stream() error {
 			return errors.Wrap(err, "error reading packet")
 		}
 
+		log.Printf("Read packet from %s\n", s.cam.Name)
 		// Write packet to each writer
-		for id := range s.writers {
-			if err := s.writers[id].Write(pkt); err != nil {
-				log.Println(errors.Wrapf(err, "error writing packet to %s", s.writers[id]))
+		for _, w := range s.writers {
+			if err := w.Write(pkt); err != nil {
+				log.Println(errors.Wrapf(err, "error writing packet to %s", w))
 			}
 		}
 

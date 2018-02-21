@@ -1,4 +1,4 @@
-package cmd
+package main
 
 import (
 	"flag"
@@ -17,6 +17,11 @@ import (
 func main() {
 	conf := flag.String("conf", "", "config file")
 	flag.Parse()
+
+	if *conf == "" {
+		flag.Usage()
+		os.Exit(1)
+	}
 
 	cfg, err := config.ParseConfig(*conf)
 	if err != nil {

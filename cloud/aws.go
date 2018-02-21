@@ -8,10 +8,11 @@ import (
 
 var S3Uploader *s3manager.Uploader
 var Config *aws.Config
+var sess *session.Session
 
 func ConfigureS3(cfg *aws.Config) {
-	session := session.Must(session.NewSession(cfg))
-	S3Uploader = s3manager.NewUploader(session)
+	sess = session.Must(session.NewSession(cfg))
+	S3Uploader = s3manager.NewUploader(sess)
 }
 
 func Uploader() *s3manager.Uploader {
