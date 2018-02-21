@@ -36,6 +36,26 @@ type AWSConfig struct {
 	SecretAccessKey string `yaml:"secretAccessKey"`
 }
 
+func (a *AWSConfig) Ready() bool {
+	if a.S3Bucket == "" {
+		return false
+	}
+
+	if a.Region == "" {
+		return false
+	}
+
+	if a.AccessKey == "" {
+		return false
+	}
+
+	if a.SecretAccessKey == "" {
+		return false
+	}
+
+	return true
+}
+
 func ParseConfig(fn string) (*Config, error) {
 	bytes, err := ioutil.ReadFile(fn)
 	if err != nil {

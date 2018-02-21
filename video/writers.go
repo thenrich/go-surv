@@ -160,7 +160,7 @@ func (lw *LocalWriter) rotate() error {
 }
 
 func (lw *LocalWriter) filename(name string, t time.Time) string {
-	return fmt.Sprintf("%s-%d-%s-%d-%d-%d.mp4", name, t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute())
+	return fmt.Sprintf("%s-%d-%d-%d-%d-%d.mp4", name, t.Year(), t.Month(), t.Day(), t.Hour(), t.Minute())
 }
 
 func (lw *LocalWriter) Close() error {

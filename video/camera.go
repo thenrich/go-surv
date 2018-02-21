@@ -7,8 +7,9 @@ import (
 	"github.com/thenrich/go-surv/config"
 )
 
+
+// CameraStreamer defines the behavior for camera handlers
 type CameraStreamer interface {
-	// Camera should return a pointer to the named camera
 	Camera(name string) *Camera
 	StartStreams()
 }
@@ -58,7 +59,13 @@ func (ch *CameraHandler) StartStreams() {
 	for _, cam := range ch.cameras {
 		log.Printf("Starting stream for %s", cam.Name)
 		stream := NewStream(cam)
-		stream.AddWriter(NewS3Writer(cam.Name, cam.recordInterval, ch.cfg))
+
+		if ch.cfg.Storage == "s3" {
+			if !ch.cfg.AWS.Ready() {
+				log.Fatal("Missing AWS configuration")
+			}
+			stream.AddWriter(NewS3Writer(cam.Name, cam.recordInterval, ch.cfg))
+		}
 
 		ch.streams[cam.Name] = stream
 

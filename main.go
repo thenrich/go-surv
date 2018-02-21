@@ -1,7 +1,6 @@
 package main
 
 import (
-	"github.com/nareix/joy4/format"
 	"flag"
 	_ "image/jpeg"
 	"net/http"
@@ -14,18 +13,6 @@ import (
 	"github.com/thenrich/go-surv/cloud"
 	"github.com/thenrich/go-surv/config"
 )
-
-func init() {
-	format.RegisterAll()
-}
-
-//type Config struct {
-//	// prefix for a directory of still images every second
-//	prefix string
-//
-//	// single file updated every second
-//	snapfile string
-//}
 
 func main() {
 

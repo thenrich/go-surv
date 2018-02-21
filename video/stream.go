@@ -4,37 +4,48 @@ import (
 	"github.com/nareix/joy4/av/avutil"
 	"log"
 	"github.com/nareix/joy4/av"
-	"github.com/nareix/joy4/cgo/ffmpeg"
 	"github.com/pkg/errors"
 	"io"
+	"github.com/nareix/joy4/format"
 )
 
+func init() {
+	format.RegisterAll()
+}
+
+// Still defines an object for holding bytes for still images
 type Still struct {
 	imgData []byte
 }
 
+// Stream supports reading from a Camera and writing to one
+// or more writers. This is also reponsible for handling a channel
+// that transfers still image data for viewing via HTTP.
 type Stream struct {
 	cam *Camera
 
-	demuxer      av.DemuxCloser
-	writers      []Writer
-	videoDecoder *ffmpeg.VideoDecoder
+	demuxer av.DemuxCloser
+	writers []Writer
 
 	stills chan *Still
 }
 
+// NewStream creates a new stream for a Camera
 func NewStream(cam *Camera) *Stream {
 	return &Stream{cam: cam, stills: make(chan *Still, 100)}
 }
 
+// AddWriter adds a new writer to the stream
 func (s *Stream) AddWriter(w Writer) {
 	s.writers = append(s.writers, w)
 }
 
+// Stills returns the channel used for communicating still images
 func (s *Stream) Stills() chan *Still {
 	return s.stills
 }
 
+// openStream opens the source stream
 func (s *Stream) openStream() error {
 	demux, err := avutil.Open(s.cam.SourceURL)
 	if err != nil {
@@ -46,6 +57,8 @@ func (s *Stream) openStream() error {
 	return nil
 }
 
+// Stream sets up the writers, reads from the source stream, and writes the
+// packets to the writers.
 func (s *Stream) Stream() error {
 	// Open the camera source
 	s.openStream()
@@ -97,6 +110,7 @@ func (s *Stream) Stream() error {
 
 }
 
+// Cleanup closes streams and calls the Close method on each writer
 func (s *Stream) Cleanup() {
 	for id := range s.writers {
 		if err := s.writers[id].Close(); err != nil {
