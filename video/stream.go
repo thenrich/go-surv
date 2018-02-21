@@ -22,9 +22,13 @@ type Still struct {
 // or more writers. This is also reponsible for handling a channel
 // that transfers still image data for viewing via HTTP.
 type Stream struct {
+	// Camera for this stream
 	cam *Camera
 
+	// video source
 	demuxer av.DemuxCloser
+
+	// outputs
 	writers []Writer
 
 	stills chan *Still
