@@ -40,7 +40,7 @@ func main() {
 	}
 
 	log.Println("Start streams")
-	ch.StartStreams()
+	go ch.StartStreams()
 
 	c := make(chan os.Signal, 1)
 	signal.Notify(c, os.Interrupt)

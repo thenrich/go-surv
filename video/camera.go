@@ -3,7 +3,6 @@ package video
 import (
 	"time"
 	"log"
-	"github.com/pkg/errors"
 	"github.com/thenrich/go-surv/config"
 	"github.com/thenrich/go-surv/cloud/aws"
 )
@@ -56,10 +55,54 @@ func (ch *CameraHandler) Camera(name string) *Camera {
 	return nil
 }
 
+// StartStreams sets up the streams for each camera and begins reading
+// camera data.
 func (ch *CameraHandler) StartStreams() {
+	// Create the streams and add writers
+	ch.setupStreams()
+
+	ch.stream()
+
+}
+
+func (ch *CameraHandler) stream() {
+	for {
+		for _, stream := range ch.streams {
+			// @TODO Separate writers from stream reader and
+			// do something like Copy(stream, MultiWriter) or something
+			// where MultiWriter is a struct holding a reference to all
+			// our writers
+			err := stream.Read()
+			if err != nil {
+				log.Println(err)
+				stream.Cleanup()
+			}
+		}
+	}
+
+}
+
+func (ch *CameraHandler) setupStreams() {
+	// Setup streams for each camera,
 	for _, cam := range ch.cameras {
-		log.Printf("Starting stream for %s", cam.Name)
+		log.Printf("Setup stream for %s", cam.Name)
 		stream := NewStream(cam)
+
+		// open camera streams
+		streams, err := stream.Open()
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+
+		// setup still writer
+		// @TODO should the Stills channel be on a stream or the writer?
+		still, err := NewStillWriter(streams, stream.Stills())
+		if err != nil {
+			log.Println(err)
+			continue
+		}
+		stream.AddWriter(still)
 
 		if ch.cfg.Storage == "s3" {
 			if !ch.cfg.AWS.Ready() {
@@ -71,23 +114,15 @@ func (ch *CameraHandler) StartStreams() {
 
 		ch.streams[cam.Name] = stream
 
-		go func(stream *Stream) {
-			err := stream.Stream()
-			if err != nil {
-				log.Println(errors.Wrapf(err, "error from stream"))
-			}
-		}(stream)
 
 		go func(stream *Stream, cam *Camera) {
 			for {
 				select {
 				case s := <-stream.Stills():
-					log.Printf("send still for %s", cam.Name)
 					cam.LatestImage = s.imgData
 				}
 			}
 		}(stream, cam)
-
 	}
 }
 

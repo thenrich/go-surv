@@ -31,6 +31,9 @@ type Stream struct {
 	// outputs
 	writers []Writer
 
+	// streams
+	streams []av.CodecData
+
 	stills chan *Still
 }
 
@@ -39,8 +42,12 @@ func NewStream(cam *Camera) *Stream {
 	return &Stream{cam: cam, stills: make(chan *Still, 100)}
 }
 
-// AddWriter adds a new writer to the stream
+// AddWriter adds a new writer to the stream and opens it
 func (s *Stream) AddWriter(w Writer) {
+	if err := w.Open(s.streams); err != nil {
+		log.Println(errors.Wrap(err, "error opening still writer"))
+	}
+
 	s.writers = append(s.writers, w)
 }
 
@@ -61,55 +68,41 @@ func (s *Stream) openStream() error {
 	return nil
 }
 
-// Stream sets up the writers, reads from the source stream, and writes the
-// packets to the writers.
-func (s *Stream) Stream() error {
-	// Open the camera source
+// Open camera stream and return the available stream data.
+func (s *Stream) Open() ([]av.CodecData, error) {
 	s.openStream()
 
 	// Get a reference to the incoming video stream
 	var streams []av.CodecData
 	var err error
 	if streams, err = s.demuxer.Streams(); err != nil {
-		return errors.Wrap(err, "error getting streams")
+		return nil, errors.Wrap(err, "error getting streams")
 	}
 
-	// Setup still writer
-	still, err := NewStillWriter(streams, s.stills)
-	if err != nil {
-		log.Println(errors.Wrap(err, "error creating still writer"))
-	}
-	// add still writer to our slice of writers
-	s.writers = append(s.writers, still)
+	s.streams = streams
 
-	for id := range s.writers {
-		if err := s.writers[id].Open(streams); err != nil {
-			log.Println(errors.Wrap(err, "error opening still writer"))
-		}
-	}
+	return s.streams, nil
+}
 
+// Read reads a packet from the stream.
+func (s *Stream) Read() error {
 	// read packets
-	for {
-		var err error
-		var pkt av.Packet
-		if pkt, err = s.demuxer.ReadPacket(); err != nil {
-			if err == io.EOF {
-				err = nil
-				break
-			}
-			return errors.Wrap(err, "error reading packet")
+	var err error
+	var pkt av.Packet
+	if pkt, err = s.demuxer.ReadPacket(); err != nil {
+		if err == io.EOF {
+			return err
 		}
-
-		// Write packet to each writer
-		for _, w := range s.writers {
-			if err := w.Write(pkt); err != nil {
-				log.Println(errors.Wrapf(err, "error writing packet to %s", w))
-			}
-		}
-
+		return errors.Wrap(err, "error reading packet")
 	}
 
-	s.Cleanup()
+	// Write packet to each writer
+	for _, w := range s.writers {
+		if err := w.Write(pkt); err != nil {
+			log.Println(errors.Wrapf(err, "error writing packet to %s", w))
+		}
+	}
+
 	return nil
 
 }
