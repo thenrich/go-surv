@@ -7,15 +7,44 @@ import (
 	"github.com/thenrich/go-surv/video"
 )
 
-func NewHttpHandler(cs video.CameraStreamer) *HttpHandler {
-	return &HttpHandler{cs}
+type route struct {
+	pattern *regexp.Regexp
+	handler http.Handler
 }
 
-type HttpHandler struct {
+type RegexHandler struct {
+	routes []*route
+}
+
+func (rh *RegexHandler) Handle(pattern *regexp.Regexp, handler http.Handler) {
+	rh.routes = append(rh.routes, &route{pattern, handler})
+}
+
+func (rh *RegexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	for _, route := range rh.routes {
+		if route.pattern.MatchString(r.URL.Path) {
+			route.handler.ServeHTTP(w, r)
+			return
+		}
+	}
+
+	http.NotFound(w, r)
+}
+
+func NewRegexHandler() *RegexHandler {
+	return &RegexHandler{}
+}
+
+
+func NewCameraHandler(cs video.CameraStreamer) *CameraHandler {
+	return &CameraHandler{cs}
+}
+
+type CameraHandler struct {
 	cameras video.CameraStreamer
 }
 
-func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+func (ch *CameraHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	re, err := regexp.Compile("cameras/(?P<Camera>[a-zA-Z0-9_]+)")
 	if err != nil {
 		log.Fatal(err)
@@ -27,7 +56,7 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	cam := h.cameras.Camera(f[1])
+	cam := ch.cameras.Camera(f[1])
 	if cam == nil {
 		http.NotFound(w, r)
 		return
@@ -37,4 +66,34 @@ func (h *HttpHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	w.Write(cam.LatestImage)
 	return
 
+}
+
+func NewDashHandler() *DashHandler {
+	return &DashHandler{}
+}
+
+type DashHandler struct {}
+func (dh *DashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	html := `
+<html>
+ <style>
+ img {
+    width: 30%;
+ }
+ </style>
+ <body>
+  <div><img src="/cameras/front_door"></div>
+  <div><img src="/cameras/back_door"></div>
+ </body>
+</html>
+`
+	w.Write([]byte(html))
+}
+
+func NewHandler(cs video.CameraStreamer) http.Handler {
+	h := NewRegexHandler()
+	h.Handle(regexp.MustCompile("cameras/"), NewCameraHandler(cs))
+	h.Handle(regexp.MustCompile("dash"), NewDashHandler())
+
+	return h
 }

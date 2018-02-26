@@ -53,5 +53,5 @@ func main() {
 		}
 	}()
 
-	http.ListenAndServe(":8080", ghttp.NewHttpHandler(ch))
+	http.ListenAndServe(":8080", ghttp.NewHandler(ch))
 }
