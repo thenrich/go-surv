@@ -1,17 +1,18 @@
 package main
 
 import (
+	"net/http"
 	"flag"
 	"github.com/thenrich/go-surv/config"
 	"log"
 	"os"
-	"os/signal"
 	"github.com/aws/aws-sdk-go/aws/credentials"
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/thenrich/go-surv/cloud"
 	"github.com/thenrich/go-surv/video"
+	gaws "github.com/thenrich/go-surv/cloud/aws"
 	ghttp "github.com/thenrich/go-surv/http"
-	"net/http"
+	"os/signal"
 )
 
 func main() {
@@ -35,8 +36,13 @@ func main() {
 	}
 
 	ch := video.NewCameraHandler(cfg)
-	for _, cam := range cfg.Cameras {
-		ch.AddCamera(video.NewCamera(cam.Name, cam.Source, cfg.StorageInterval))
+	for _, cfgCam := range cfg.Cameras {
+		camera := video.NewCamera(cfgCam.Name, cfgCam.Source, cfg.StorageInterval)
+		if cfg.AWS.Ready() && cfg.Storage == "s3" {
+			s3storage := gaws.NewS3Storage(cfg.AWS, cfg.AWS.S3Bucket)
+			camera.AddWriter(video.NewCloudStorage(camera.Name, cfg.StorageInterval, cfg, s3storage))
+		}
+		ch.AddCamera(camera)
 	}
 
 	log.Println("Start streams")

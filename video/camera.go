@@ -4,7 +4,6 @@ import (
 	"time"
 	"log"
 	"github.com/thenrich/go-surv/config"
-	"github.com/thenrich/go-surv/cloud/aws"
 )
 
 // CameraStreamer defines the behavior for camera handlers
@@ -25,8 +24,17 @@ type Camera struct {
 
 	// interval to record
 	recordInterval time.Duration
+
+	// writers
+	writers []Writer
 }
 
+// AddWriter adds packet writers to this camera
+func (c *Camera) AddWriter(w Writer) {
+	c.writers = append(c.writers, w)
+}
+
+// NewCamera creates a new camera instance
 func NewCamera(name string, source string, recordInterval time.Duration) *Camera {
 	return &Camera{Name: name, SourceURL: source, recordInterval: recordInterval}
 }
@@ -94,13 +102,9 @@ func (ch *CameraHandler) setupStreams() {
 			continue
 		}
 		stream.AddWriter(still)
-
-		if ch.cfg.Storage == "s3" {
-			if !ch.cfg.AWS.Ready() {
-				log.Fatal("Missing AWS configuration")
-			}
-			cw := aws.NewS3Storage(ch.cfg.AWS, ch.cfg.AWS.S3Bucket)
-			stream.AddWriter(NewCloudStorage(cam.Name, cam.recordInterval, ch.cfg, cw))
+		// Add all of the camera writers to the stream
+		for _, w := range cam.writers {
+			stream.AddWriter(w)
 		}
 
 		ch.streams[cam.Name] = stream
