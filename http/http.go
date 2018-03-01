@@ -5,8 +5,7 @@ import (
 	"regexp"
 	"log"
 	"github.com/thenrich/go-surv/video"
-}
-
+)
 
 func NewCameraHandler(cs video.CameraStreamer) *CameraHandler {
 	return &CameraHandler{cs}
@@ -39,8 +38,6 @@ func (ch *CameraHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 	return
 
 }
-
-
 
 func NewHandler(cs video.CameraStreamer) http.Handler {
 	h := NewRegexHandler()
