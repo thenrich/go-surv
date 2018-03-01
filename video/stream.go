@@ -28,12 +28,16 @@ type Stream struct {
 	// video source
 	demuxer av.DemuxCloser
 
+	// channel of packet data
+	data chan av.Packet
+
 	// outputs
 	writers []Writer
 
 	// streams
 	streams []av.CodecData
 
+	// Channel for sending stills
 	stills chan *Still
 }
 
@@ -81,30 +85,56 @@ func (s *Stream) Open() ([]av.CodecData, error) {
 
 	s.streams = streams
 
+	s.data = make(chan av.Packet)
+
 	return s.streams, nil
 }
 
-// Read reads a packet from the stream.
-func (s *Stream) Read() error {
-	// read packets
-	var err error
-	var pkt av.Packet
-	if pkt, err = s.demuxer.ReadPacket(); err != nil {
-		if err == io.EOF {
-			return err
+// Start the stream.
+//
+// Here we start the writers goroutine which starts reading from the
+// data channel and writes the packet to all writers when one is received.
+// Then we start the reader to read the packets from the demuxer buffer.
+func (s *Stream) Start() {
+	go s.startWriters()
+	go s.startReader()
+}
+
+func (s *Stream) startWriters() {
+	for {
+		select {
+		case pkt := <-s.data:
+			for _, w := range s.writers {
+				if err := w.Write(pkt); err != nil {
+					log.Println(errors.Wrapf(err, "error writing packet to %s", w))
+				}
+			}
 		}
-		return errors.Wrap(err, "error reading packet")
 	}
+}
 
-	// Write packet to each writer
-	for _, w := range s.writers {
-		if err := w.Write(pkt); err != nil {
-			log.Println(errors.Wrapf(err, "error writing packet to %s", w))
+func (s *Stream) startReader() {
+	for {
+		// read packets
+		var err error
+		var pkt av.Packet
+		if pkt, err = s.demuxer.ReadPacket(); err != nil {
+			if err == io.EOF {
+				break
+			}
+			log.Println(errors.Wrap(err, "error reading packet"))
+			break
 		}
+
+		s.data <- pkt
+
+		//// Write packet to each writer
+		//for _, w := range s.writers {
+		//	if err := w.Write(pkt); err != nil {
+		//		log.Println(errors.Wrapf(err, "error writing packet to %s", w))
+		//	}
+		//}
 	}
-
-	return nil
-
 }
 
 // Cleanup closes streams and calls the Close method on each writer

@@ -66,18 +66,12 @@ func (ch *CameraHandler) StartStreams() {
 }
 
 func (ch *CameraHandler) stream() {
-	for {
-		for _, stream := range ch.streams {
-			// @TODO Separate writers from stream reader and
-			// do something like Copy(stream, MultiWriter) or something
-			// where MultiWriter is a struct holding a reference to all
-			// our writers
-			err := stream.Read()
-			if err != nil {
-				log.Println(err)
-				stream.Cleanup()
-			}
-		}
+	for _, stream := range ch.streams {
+		// @TODO Separate writers from stream reader and
+		// do something like Copy(stream, MultiWriter) or something
+		// where MultiWriter is a struct holding a reference to all
+		// our writers
+		stream.Start()
 	}
 
 }
@@ -113,7 +107,6 @@ func (ch *CameraHandler) setupStreams() {
 		}
 
 		ch.streams[cam.Name] = stream
-
 
 		go func(stream *Stream, cam *Camera) {
 			for {
