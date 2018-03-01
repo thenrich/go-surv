@@ -65,12 +65,9 @@ func (ch *CameraHandler) StartStreams() {
 
 }
 
+// iterate over all of our streams and start each one
 func (ch *CameraHandler) stream() {
 	for _, stream := range ch.streams {
-		// @TODO Separate writers from stream reader and
-		// do something like Copy(stream, MultiWriter) or something
-		// where MultiWriter is a struct holding a reference to all
-		// our writers
 		stream.Start()
 	}
 

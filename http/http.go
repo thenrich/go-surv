@@ -5,34 +5,6 @@ import (
 	"regexp"
 	"log"
 	"github.com/thenrich/go-surv/video"
-)
-
-type route struct {
-	pattern *regexp.Regexp
-	handler http.Handler
-}
-
-type RegexHandler struct {
-	routes []*route
-}
-
-func (rh *RegexHandler) Handle(pattern *regexp.Regexp, handler http.Handler) {
-	rh.routes = append(rh.routes, &route{pattern, handler})
-}
-
-func (rh *RegexHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	for _, route := range rh.routes {
-		if route.pattern.MatchString(r.URL.Path) {
-			route.handler.ServeHTTP(w, r)
-			return
-		}
-	}
-
-	http.NotFound(w, r)
-}
-
-func NewRegexHandler() *RegexHandler {
-	return &RegexHandler{}
 }
 
 
@@ -68,32 +40,12 @@ func (ch *CameraHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
 
 }
 
-func NewDashHandler() *DashHandler {
-	return &DashHandler{}
-}
 
-type DashHandler struct {}
-func (dh *DashHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
-	html := `
-<html>
- <style>
- img {
-    width: 30%;
- }
- </style>
- <body>
-  <div><img src="/cameras/front_door"></div>
-  <div><img src="/cameras/back_door"></div>
- </body>
-</html>
-`
-	w.Write([]byte(html))
-}
 
 func NewHandler(cs video.CameraStreamer) http.Handler {
 	h := NewRegexHandler()
 	h.Handle(regexp.MustCompile("cameras/"), NewCameraHandler(cs))
-	h.Handle(regexp.MustCompile("dash"), NewDashHandler())
+	h.Handle(regexp.MustCompile("dash$"), NewDashHandler())
 
 	return h
 }

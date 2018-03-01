@@ -104,6 +104,7 @@ func (cs *CloudStorage) Close() error {
 	return nil
 }
 
+// NewCloudStorage creates a new CloudStorage instance with the given configuration and CloudWriter
 func NewCloudStorage(name string, interval time.Duration, cfg *config.Config, cloud CloudWriter) *CloudStorage {
 	localPath := fmt.Sprintf("/tmp/%s", name)
 	return &CloudStorage{LocalWriter: NewLocalWriter(localPath, interval), writer: cloud}
@@ -187,6 +188,7 @@ func (lw *LocalWriter) Write(pkt av.Packet) error {
 	return nil
 }
 
+// NewLocalWriter creates a new writer for storing videos locally
 func NewLocalWriter(name string, interval time.Duration) *LocalWriter {
 	return &LocalWriter{name: name, duration: interval, nextRotation: time.Now().UTC().Add(interval)}
 
@@ -248,6 +250,8 @@ func (sw *StillWriter) encodeStill(img image.Image) {
 
 }
 
+// NewStillWriter creates a writer for passing still images through a channel for
+// consumption.
 func NewStillWriter(streams []av.CodecData, ch chan *Still) (*StillWriter, error) {
 	// get video stream from streams
 	vstream, err := extractVideoStream(streams)
