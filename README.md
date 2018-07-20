@@ -9,6 +9,7 @@ Very basic IP camera monitoring and archiving using https://github.com/nareix/jo
 
 **Known issues**
 - Video only, audio streams must be disabled on camera or streaming will fail
+- Some cameras (namely mine) don't like the RTSP keepalive implementation used by https://github.com/nareix/joy4 and close the connection after a couple hours
 
 **Configuration**
 ```yaml
