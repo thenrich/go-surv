@@ -1,16 +1,24 @@
 package video
 
 import (
-	"github.com/nareix/joy4/av/avutil"
+	"fmt"
+	"github.com/giorgisio/goav/avcodec"
+	"github.com/giorgisio/goav/swscale"
 	"log"
 	"github.com/nareix/joy4/av"
 	"github.com/pkg/errors"
 	"io"
 	"github.com/nareix/joy4/format"
+	"github.com/giorgisio/goav/avformat"
+	"github.com/giorgisio/goav/avutil"
+	"os"
+	"unsafe"
 )
 
 func init() {
 	format.RegisterAll()
+	avformat.AvformatNetworkInit()
+
 }
 
 // Still defines an object for holding bytes for still images
@@ -26,7 +34,7 @@ type Stream struct {
 	cam *Camera
 
 	// video source
-	demuxer av.DemuxCloser
+	demuxer *demuxer
 
 	// channel of packet data
 	data chan av.Packet
@@ -62,12 +70,19 @@ func (s *Stream) Stills() chan *Still {
 
 // openStream opens the source stream
 func (s *Stream) openStream() error {
-	demux, err := avutil.Open(s.cam.SourceURL)
-	if err != nil {
-		return errors.Wrapf(err, "error opening %s", s.cam.SourceURL)
+	// Open video file
+	ctx := avformat.AvformatAllocContext()
+	if avformat.AvformatOpenInput(&ctx, s.cam.SourceURL, nil, nil) != 0 {
+		return errors.Errorf("error opening %s", s.cam.SourceURL)
 	}
 
-	s.demuxer = demux
+	s.demuxer = &demuxer{
+		ctx: &ctx,
+	}
+
+	if err := s.demuxer.open(); err != nil {
+		return errors.Wrap(err, "error opening demuxer")
+	}
 
 	return nil
 }
@@ -75,6 +90,8 @@ func (s *Stream) openStream() error {
 // Open camera stream and return the available stream data.
 func (s *Stream) Open() ([]av.CodecData, error) {
 	s.openStream()
+
+
 
 	// Get a reference to the incoming video stream
 	var streams []av.CodecData

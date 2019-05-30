@@ -2,6 +2,7 @@
 
 
 [[projects]]
+  digest = "1:1468b0a3b572aa3e37c41094a462fd832bc700c1c65f05b966413603c199123c"
   name = "github.com/aws/aws-sdk-go"
   packages = [
     "aws",
@@ -31,24 +32,38 @@
     "service/s3",
     "service/s3/s3iface",
     "service/s3/s3manager",
-    "service/sts"
+    "service/sts",
   ]
+  pruneopts = "UT"
   revision = "f9a6880d84e16e2a37055793e17164a228d637f4"
   version = "v1.13.1"
 
 [[projects]]
+  digest = "1:812fef7167c22256776058fb541a5041b3bf125616cbadfb48ca8b1874f681ba"
+  name = "github.com/giorgisio/goav"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "001779d0326de9f52d44338ca3e45f15065a3bc2"
+  version = "v0.1.0"
+
+[[projects]]
+  digest = "1:50772cf1f376b08cb57b4e8e9225775d9f9f4aad8487313afcb66846ceaa5d4c"
   name = "github.com/go-ini/ini"
   packages = ["."]
+  pruneopts = "UT"
   revision = "32e4c1e6bc4e7d0d8451aa6b75200d19e37a536a"
   version = "v1.32.0"
 
 [[projects]]
+  digest = "1:e22af8c7518e1eab6f2eab2b7d7558927f816262586cd6ed9f349c97a6c285c4"
   name = "github.com/jmespath/go-jmespath"
   packages = ["."]
+  pruneopts = "UT"
   revision = "0b12d6b5"
 
 [[projects]]
   branch = "master"
+  digest = "1:4e27f2b5553832b093f6ab17a3dfccdd8887cff22ccb232c2a35654be513fcb4"
   name = "github.com/nareix/joy4"
   packages = [
     "av",
@@ -70,25 +85,42 @@
     "format/ts",
     "format/ts/tsio",
     "utils/bits",
-    "utils/bits/pio"
+    "utils/bits/pio",
   ]
+  pruneopts = "UT"
   revision = "bd41a3b90ff2205431b4a74e4d45d6f63e987519"
 
 [[projects]]
+  digest = "1:40e195917a951a8bf867cd05de2a46aaf1806c50cf92eebf4c16f78cd196f747"
   name = "github.com/pkg/errors"
   packages = ["."]
+  pruneopts = "UT"
   revision = "645ef00459ed84a119197bfb8d8205042c6df63d"
   version = "v0.8.0"
 
 [[projects]]
   branch = "v2"
+  digest = "1:73e6fda93622790d2371344759df06ff5ff2fac64a6b6e8832b792e7402956e7"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
+  pruneopts = "UT"
   revision = "d670f9405373e636a5a2765eea47fac0c9bc91a4"
 
 [solve-meta]
   analyzer-name = "dep"
   analyzer-version = 1
-  inputs-digest = "b113f9aa47e6325bd5bbff87fe66fb4fabe26c800867b83d00e78d27903a9b78"
+  input-imports = [
+    "github.com/aws/aws-sdk-go/aws",
+    "github.com/aws/aws-sdk-go/aws/credentials",
+    "github.com/aws/aws-sdk-go/aws/session",
+    "github.com/aws/aws-sdk-go/service/s3/s3manager",
+    "github.com/giorgisio/goav",
+    "github.com/nareix/joy4/av",
+    "github.com/nareix/joy4/av/avutil",
+    "github.com/nareix/joy4/cgo/ffmpeg",
+    "github.com/nareix/joy4/format",
+    "github.com/pkg/errors",
+    "gopkg.in/yaml.v2",
+  ]
   solver-name = "gps-cdcl"
   solver-version = 1
