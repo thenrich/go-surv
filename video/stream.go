@@ -34,13 +34,13 @@ type Stream struct {
 	demuxer *demuxer
 
 	// channel of packet data
-	data chan av.Packet
+	data chan gmf.Packet
 
 	// outputs
 	writers []Writer
 
 	// streams
-	streams []av.CodecData
+	//streams []av.CodecData
 
 	// Channel for sending stills
 	stills chan *Still
@@ -94,7 +94,7 @@ func (s *Stream) Open() ([]av.CodecData, error) {
 
 	s.streams = streams
 
-	s.data = make(chan av.Packet)
+	s.data = make(chan gmf.Packet)
 
 	return s.streams, nil
 }

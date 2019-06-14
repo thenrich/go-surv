@@ -70,6 +70,7 @@ func (d *demuxer) Read() error {
 
 		// use encoder here
 		log.Println("Encode something")
+		d.imgCodecCtx.Encode()
 
 
 		for i := range frames {
