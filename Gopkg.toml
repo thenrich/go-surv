@@ -25,9 +25,7 @@
 #   unused-packages = true
 
 
-[[constraint]]
-  branch = "master"
-  name = "github.com/nareix/joy4"
+
 
 [[constraint]]
   name = "github.com/pkg/errors"
@@ -41,6 +39,3 @@
   go-tests = true
   unused-packages = true
 
-[[constraint]]
-  name = "github.com/giorgisio/goav"
-  version = "0.1.0"

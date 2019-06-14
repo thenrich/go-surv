@@ -2,22 +2,19 @@ package video
 
 import (
 	"fmt"
-	"github.com/giorgisio/goav/avcodec"
-	"github.com/giorgisio/goav/swscale"
+
 	"log"
-	"github.com/nareix/joy4/av"
 	"github.com/pkg/errors"
 	"io"
-	"github.com/nareix/joy4/format"
-	"github.com/giorgisio/goav/avformat"
-	"github.com/giorgisio/goav/avutil"
+
 	"os"
-	"unsafe"
+
+	"github.com/3d0c/gmf"
+
 )
 
 func init() {
-	format.RegisterAll()
-	avformat.AvformatNetworkInit()
+
 
 }
 
@@ -71,14 +68,8 @@ func (s *Stream) Stills() chan *Still {
 // openStream opens the source stream
 func (s *Stream) openStream() error {
 	// Open video file
-	ctx := avformat.AvformatAllocContext()
-	if avformat.AvformatOpenInput(&ctx, s.cam.SourceURL, nil, nil) != 0 {
-		return errors.Errorf("error opening %s", s.cam.SourceURL)
-	}
 
-	s.demuxer = &demuxer{
-		ctx: &ctx,
-	}
+	s.demuxer = NewDemuxer(s.cam.SourceURL)
 
 	if err := s.demuxer.open(); err != nil {
 		return errors.Wrap(err, "error opening demuxer")
@@ -89,8 +80,9 @@ func (s *Stream) openStream() error {
 
 // Open camera stream and return the available stream data.
 func (s *Stream) Open() ([]av.CodecData, error) {
-	s.openStream()
-
+	if err := s.openStream(); err != nil {
+		return nil, errors.Wrap(err, "error opening stream")
+	}
 
 
 	// Get a reference to the incoming video stream
