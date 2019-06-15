@@ -47,19 +47,6 @@
   version = "v1.13.1"
 
 [[projects]]
-  digest = "1:47ead0ef2ded99794e7287c69e150b257ee594e798a6ee61adb1cc46c1424c0b"
-  name = "github.com/giorgisio/goav"
-  packages = [
-    "avcodec",
-    "avformat",
-    "avutil",
-    "swscale",
-  ]
-  pruneopts = "UT"
-  revision = "001779d0326de9f52d44338ca3e45f15065a3bc2"
-  version = "v0.1.0"
-
-[[projects]]
   digest = "1:50772cf1f376b08cb57b4e8e9225775d9f9f4aad8487313afcb66846ceaa5d4c"
   name = "github.com/go-ini/ini"
   packages = ["."]
@@ -76,14 +63,27 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:454f7b312c169ced73e7a45f6469dfe7d0c02c7b45db5c089e162bf45f846ede"
+  digest = "1:4e27f2b5553832b093f6ab17a3dfccdd8887cff22ccb232c2a35654be513fcb4"
   name = "github.com/nareix/joy4"
   packages = [
     "av",
     "av/avutil",
     "cgo/ffmpeg",
+    "codec",
     "codec/aacparser",
+    "codec/fake",
     "codec/h264parser",
+    "format",
+    "format/aac",
+    "format/flv",
+    "format/flv/flvio",
+    "format/mp4",
+    "format/mp4/mp4io",
+    "format/rtmp",
+    "format/rtsp",
+    "format/rtsp/sdp",
+    "format/ts",
+    "format/ts/tsio",
     "utils/bits",
     "utils/bits/pio",
   ]
@@ -115,13 +115,10 @@
     "github.com/aws/aws-sdk-go/aws/credentials",
     "github.com/aws/aws-sdk-go/aws/session",
     "github.com/aws/aws-sdk-go/service/s3/s3manager",
-    "github.com/giorgisio/goav/avcodec",
-    "github.com/giorgisio/goav/avformat",
-    "github.com/giorgisio/goav/avutil",
-    "github.com/giorgisio/goav/swscale",
     "github.com/nareix/joy4/av",
     "github.com/nareix/joy4/av/avutil",
     "github.com/nareix/joy4/cgo/ffmpeg",
+    "github.com/nareix/joy4/format",
     "github.com/pkg/errors",
     "gopkg.in/yaml.v2",
   ]

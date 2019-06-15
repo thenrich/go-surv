@@ -1,20 +1,14 @@
 package video
 
 import (
-	"fmt"
-
-	"log"
 	"github.com/pkg/errors"
 	"io"
-
-	"os"
+	"log"
 
 	"github.com/3d0c/gmf"
-
 )
 
 func init() {
-
 
 }
 
@@ -34,7 +28,7 @@ type Stream struct {
 	demuxer *demuxer
 
 	// channel of packet data
-	data chan gmf.Packet
+	data chan []*gmf.Frame
 
 	// outputs
 	writers []Writer
@@ -48,14 +42,18 @@ type Stream struct {
 
 // NewStream creates a new stream for a Camera
 func NewStream(cam *Camera) *Stream {
-	return &Stream{cam: cam, stills: make(chan *Still, 100)}
+	return &Stream{
+		cam: cam,
+		stills: make(chan *Still, 100),
+		data: make(chan []*gmf.Frame),
+	}
 }
 
 // AddWriter adds a new writer to the stream and opens it
 func (s *Stream) AddWriter(w Writer) {
-	if err := w.Open(s.streams); err != nil {
-		log.Println(errors.Wrap(err, "error opening still writer"))
-	}
+	//if err := w.Open(s.streams); err != nil {
+	//	log.Println(errors.Wrap(err, "error opening still writer"))
+	//}
 
 	s.writers = append(s.writers, w)
 }
@@ -79,24 +77,12 @@ func (s *Stream) openStream() error {
 }
 
 // Open camera stream and return the available stream data.
-func (s *Stream) Open() ([]av.CodecData, error) {
+func (s *Stream) Open() error {
 	if err := s.openStream(); err != nil {
-		return nil, errors.Wrap(err, "error opening stream")
+		return errors.Wrap(err, "error opening stream")
 	}
 
-
-	// Get a reference to the incoming video stream
-	var streams []av.CodecData
-	var err error
-	if streams, err = s.demuxer.Streams(); err != nil {
-		return nil, errors.Wrap(err, "error getting streams")
-	}
-
-	s.streams = streams
-
-	s.data = make(chan gmf.Packet)
-
-	return s.streams, nil
+	return nil
 }
 
 // Start the stream.
@@ -112,12 +98,18 @@ func (s *Stream) Start() {
 func (s *Stream) startWriters() {
 	for {
 		select {
-		case pkt := <-s.data:
+		case frames := <-s.data:
 			for _, w := range s.writers {
-				if err := w.Write(pkt); err != nil {
+				if err := w.Write(frames); err != nil {
 					log.Println(errors.Wrapf(err, "error writing packet to %s", w))
 				}
 			}
+
+			for i := range frames {
+				frames[i].Free()
+			}
+
+
 		}
 	}
 }
@@ -126,8 +118,8 @@ func (s *Stream) startReader() {
 	for {
 		// read packets
 		var err error
-		var pkt av.Packet
-		if pkt, err = s.demuxer.ReadPacket(); err != nil {
+		var frames []*gmf.Frame
+		if frames, err = s.demuxer.ReadFrames(); err != nil {
 			if err == io.EOF {
 				break
 			}
@@ -135,7 +127,8 @@ func (s *Stream) startReader() {
 			break
 		}
 
-		s.data <- pkt
+
+		s.data <- frames
 
 		//// Write packet to each writer
 		//for _, w := range s.writers {
@@ -148,11 +141,11 @@ func (s *Stream) startReader() {
 
 // Cleanup closes streams and calls the Close method on each writer
 func (s *Stream) Cleanup() {
-	for id := range s.writers {
-		if err := s.writers[id].Close(); err != nil {
-			log.Println(errors.Wrapf(err, "error closing %s", s.writers[id]))
-		}
-	}
+	//for id := range s.writers {
+	//	if err := s.writers[id].Close(); err != nil {
+	//		log.Println(errors.Wrapf(err, "error closing %s", s.writers[id]))
+	//	}
+	//}
 
 	if err := s.demuxer.Close(); err != nil {
 		log.Println(err)

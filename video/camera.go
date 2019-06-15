@@ -1,6 +1,7 @@
 package video
 
 import (
+	"github.com/pkg/errors"
 	"time"
 	"log"
 	"github.com/thenrich/go-surv/config"
@@ -88,27 +89,28 @@ func (ch *CameraHandler) setupStreams() {
 		stream := NewStream(cam)
 
 		// open camera streams
-		streams, err := stream.Open()
-		if err != nil {
-			log.Println(err)
-			continue
+		if err := stream.Open(); err != nil {
+			log.Fatal(errors.Wrap(err, "error opening stream"))
 		}
+
 
 		// setup still writer
 		// @TODO should the Stills channel be on a stream or the writer?
-		still, err := NewStillWriter(streams, stream.Stills())
+		still, err := NewStillWriter(stream.Stills())
 		if err != nil {
 			log.Println(err)
 			continue
 		}
+		still.SetCodecContext(stream.demuxer.srcVideo.CodecCtx())
+		still.SetTimeBase(stream.demuxer.srcVideo.TimeBase())
 		stream.AddWriter(still)
-		// Add all of the camera writers to the stream
-		for _, w := range cam.writers {
-			stream.AddWriter(w)
-		}
-
+		//// Add all of the camera writers to the stream
+		//for _, w := range cam.writers {
+		//	stream.AddWriter(w)
+		//}
+		//
 		ch.streams[cam.Name] = stream
-
+		//
 		go func(stream *Stream, cam *Camera) {
 			for {
 				select {
