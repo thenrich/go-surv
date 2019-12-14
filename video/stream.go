@@ -127,7 +127,6 @@ func (s *Stream) startReader() {
 			break
 		}
 
-
 		s.data <- frames
 
 		//// Write packet to each writer

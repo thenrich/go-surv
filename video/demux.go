@@ -8,22 +8,23 @@ import (
 )
 
 type demuxer struct {
+	// Input Data
+
 	// URL to read from
 	url string
 
+	// Original input source
 	inputCtx    *gmf.FmtCtx
+
+	// Source video stream from inputCtx
 	srcVideo    *gmf.Stream
+
+	// Actual stream from srcVideo
 	inputStream *gmf.Stream
-	codecCtx    *gmf.CodecCtx
 
 	// video stream index
 	videoStreamIndex int
 
-	// Images
-	imgCodecCtx *gmf.CodecCtx
-	imgSwsCtx   *gmf.SwsCtx
-
-	// Video
 }
 
 func (d *demuxer) ReadFrames() ([]*gmf.Frame, error) {
@@ -74,11 +75,6 @@ func (d *demuxer) ReadFrames() ([]*gmf.Frame, error) {
 		break
 	}
 
-	//if frames, err = gmf.DefaultRescaler(d.imgSwsCtx, frames); err != nil {
-	//	return nil, errors.Wrap(err, "error rescaling")
-	//}
-
-
 	if pkt != nil {
 		pkt.Free()
 		pkt = nil
@@ -108,9 +104,6 @@ func (d *demuxer) open() error {
 	d.srcVideo = srcVideo
 	d.videoStreamIndex = srcVideo.Index()
 	d.inputStream = inputStream
-	d.codecCtx = srcVideo.CodecCtx()
-
-
 
 	return nil
 }
@@ -118,9 +111,6 @@ func (d *demuxer) open() error {
 func (d *demuxer) Close() error {
 	d.inputCtx.Free()
 	d.inputStream.Free()
-	d.imgCodecCtx.Free()
-	d.imgSwsCtx.Free()
-	gmf.Release(d.imgCodecCtx)
 
 	return nil
 }
@@ -131,10 +121,10 @@ func NewDemuxer(url string) *demuxer {
 	}
 }
 
-func setEncoderParams(cc *gmf.CodecCtx, width int, height int, experimental bool) {
-	cc.SetTimeBase(gmf.AVR{Num: 1, Den: 1000})
-	cc.SetPixFmt(gmf.AV_PIX_FMT_RGB24).SetWidth(width).SetHeight(height)
-	if experimental {
-		cc.SetStrictCompliance(gmf.FF_COMPLIANCE_EXPERIMENTAL)
-	}
-}
+//func setEncoderParams(cc *gmf.CodecCtx, width int, height int, experimental bool) {
+//	cc.SetTimeBase(gmf.AVR{Num: 1, Den: 1000})
+//	cc.SetPixFmt(gmf.AV_PIX_FMT_RGB24).SetWidth(width).SetHeight(height)
+//	if experimental {
+//		cc.SetStrictCompliance(gmf.FF_COMPLIANCE_EXPERIMENTAL)
+//	}
+//}

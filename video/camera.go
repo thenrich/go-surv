@@ -96,13 +96,15 @@ func (ch *CameraHandler) setupStreams() {
 
 		// setup still writer
 		// @TODO should the Stills channel be on a stream or the writer?
-		still, err := NewStillWriter(stream.Stills())
+		still, err := NewStillWriter(stream.Stills(), stream.demuxer)
 		if err != nil {
 			log.Println(err)
 			continue
 		}
-		still.SetCodecContext(stream.demuxer.srcVideo.CodecCtx())
-		still.SetTimeBase(stream.demuxer.srcVideo.TimeBase())
+		if err = still.Open(); err != nil {
+			log.Println(errors.Wrap(err, "error opening writer"))
+		}
+
 		stream.AddWriter(still)
 		//// Add all of the camera writers to the stream
 		//for _, w := range cam.writers {

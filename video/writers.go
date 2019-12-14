@@ -2,18 +2,18 @@ package video
 
 import (
 	"bytes"
+	"fmt"
 	"github.com/3d0c/gmf"
 	"github.com/pkg/errors"
 	"image"
 	"image/jpeg"
-	"time"
 )
 
 // Writer defines the interface for writing video packets
 type Writer interface {
 	//Open(streams []av.CodecData) error
 	Write(writer []*gmf.Frame) error
-	SetCodecContext(ctx *gmf.CodecCtx) error
+	SetCodec(c int) error
 	Close() error
 }
 
@@ -188,10 +188,14 @@ type Writer interface {
 //}
 //
 type StillWriter struct {
-	// FFmpeg decoder
-	//videoDecoder *ffmpeg.VideoDecoder
+	// Input
+	demuxer *demuxer
+	inputCodecCtx *gmf.CodecCtx
+
+	// Output codec
+	swsctx *gmf.SwsCtx
+	codec *gmf.Codec
 	codecCtx *gmf.CodecCtx
-	timebase gmf.AVRational
 
 	// Still channel
 	stills chan *Still
@@ -199,112 +203,88 @@ type StillWriter struct {
 	lastStill int64
 }
 
-//func (sw *StillWriter) Open(streams []av.CodecData) error {
-//	return nil
-//}
+func (sw *StillWriter) Open() error {
+	var (
+		err error
+	)
+	sw.SetCodec(gmf.AV_CODEC_ID_RAWVIDEO)
+	sw.codecCtx.SetTimeBase(gmf.AVR{Num: 1, Den: 1})
+	sw.codecCtx.SetPixFmt(gmf.AV_PIX_FMT_RGBA).SetWidth(sw.demuxer.srcVideo.CodecCtx().Width()).SetHeight(sw.demuxer.srcVideo.CodecCtx().Height())
+	if sw.codec.IsExperimental() {
+		sw.codecCtx.SetStrictCompliance(gmf.FF_COMPLIANCE_EXPERIMENTAL)
+	}
 
-func (sw *StillWriter) SetCodecContext(ctx *gmf.CodecCtx) error {
-	sw.codecCtx = ctx
+	if err := sw.codecCtx.Open(nil); err != nil {
+		return errors.Wrap(err, "error opening codec ctx")
+	}
+
+	if sw.swsctx, err = gmf.NewSwsCtx(
+		sw.inputCodecCtx.Width(),
+		sw.inputCodecCtx.Height(),
+		sw.inputCodecCtx.PixFmt(),
+		sw.codecCtx.Width(),
+		sw.codecCtx.Height(),
+		sw.codecCtx.PixFmt(),
+		gmf.SWS_BICUBIC); err != nil {
+			return errors.Wrap(err, "error creating sws ctx")
+		}
+
 	return nil
 }
 
-func (sw *StillWriter) SetTimeBase(tb gmf.AVRational) {
-	sw.timebase = tb
+func (sw *StillWriter) SetCodec(c int) error {
+	var err error
+	sw.codec, err = gmf.FindEncoder(c)
+	if err != nil {
+		return errors.Wrap(err, "error setting codec")
+	}
 
+	sw.codecCtx = gmf.NewCodecCtx(sw.codec)
+
+	return nil
 }
 
+
 func (sw *StillWriter) Close() error {
+	gmf.Release(sw.codecCtx)
+	sw.swsctx.Free()
 	return nil
 }
 
 func (sw *StillWriter) Write(frames []*gmf.Frame) error {
-	codec, err := gmf.FindEncoder("png")
+	if len(frames) == 0 {
+		return errors.Errorf("no frames")
+	}
+
+	frames, err := gmf.DefaultRescaler(sw.swsctx, frames)
 	if err != nil {
-		return errors.Wrap(err, "error finding encoder")
+		return errors.Wrap(err, "error rescaler")
 	}
 
-	cc := gmf.NewCodecCtx(codec)
-	defer gmf.Release(cc)
-
-	cc.SetTimeBase(sw.timebase.AVR())
-	cc.SetPixFmt(
-		gmf.AV_PIX_FMT_RGB24).SetWidth(
-		sw.codecCtx.Width()).SetHeight(sw.codecCtx.Height())
-
-	if codec.IsExperimental() {
-		cc.SetStrictCompliance(gmf.FF_COMPLIANCE_EXPERIMENTAL)
-	}
-
-	if err := cc.Open(nil); err != nil {
-		return errors.Wrap(err, "error opening codec")
-	}
-
-	var swsCtx *gmf.SwsCtx
-	if swsCtx, err = gmf.NewSwsCtx(
-		sw.codecCtx.Width(),
-		sw.codecCtx.Height(),
-		sw.codecCtx.PixFmt(),
-		cc.Width(),
-		cc.Height(),
-		cc.PixFmt(),
-		gmf.SWS_BICUBIC); err != nil {
-		return errors.Wrap(err, "error create sws ctx")
-	}
-
-	defer swsCtx.Free()
-
-	if frames, err = gmf.DefaultRescaler(swsCtx, frames); err != nil {
-		return  errors.Wrap(err, "error rescaling")
-	}
-
-	packets, err := cc.Encode(frames, 0)
+	encodedPackets, err := sw.codecCtx.Encode(frames, 0)
 	if err != nil {
 		return errors.Wrap(err, "error encoding")
 	}
 
-	if len(packets) == 0 {
-		return errors.Errorf("no packets to encode\n")
+	if len(encodedPackets) == 0 {
+		return errors.Errorf("no encoded packets")
 	}
 
-	for _, p := range packets {
-		now := time.Now().Unix()
-		if sw.lastStill == 0 {
-			sw.lastStill = now
-		}
-		if time.Duration(now-sw.lastStill) > time.Second {
-			continue
-		}
-		sw.lastStill = now
+	for _, pkt := range encodedPackets {
+		width, height := sw.codecCtx.Width(), sw.codecCtx.Height()
+		fmt.Printf("Width: %s\n", width)
+		fmt.Printf("Height: %s\n", height)
+		fmt.Println(pkt)
 
-		sw.stills <- &Still{imgData: p.Data()}
-		p.Free()
+		img := new(image.RGBA)
+		img.Pix = pkt.Data()
+		img.Stride = 4 * width
+		img.Rect = image.Rect(0, 0, width, height)
+
+		pkt.Free()
+
+		sw.encodeStill(img)
 	}
-
-	//frame, err := sw.videoDecoder.Decode(pkt.Data)
-	//
-	//if err != nil {
-	//	return errors.Wrap(err, "error decoding packet data")
-	//}
-	//
-	//if frame == nil {
-	//	return nil
-	//}
-	//
-	//defer frame.Free()
-	//
-	//// get packet time
-	//if sw.lastStill == 0 {
-	//	sw.lastStill = pkt.Time
-	//}
-	//
-	//if pkt.Time-sw.lastStill < time.Duration(1*time.Second) {
-	//	return nil
-	//}
-	//
-	//sw.lastStill = pkt.Time
-	//img := frame.Image
-	//
-	//go sw.encodeStill(&img)
 
 	return nil
 }
@@ -319,20 +299,12 @@ func (sw *StillWriter) encodeStill(img image.Image) {
 
 //NewStillWriter creates a writer for passing still images through a channel for
 //consumption.
-func NewStillWriter(ch chan *Still) (*StillWriter, error) {
-	// get video stream from streams
-	//vstream, err := extractVideoStream(streams)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "error reading stream")
-	//}
-	//decoder, err := ffmpeg.NewVideoDecoder(vstream)
-	//if err != nil {
-	//	return nil, errors.Wrap(err, "error creating video decoder")
-	//}
-	//
-	//if err := decoder.Setup(); err != nil {
-	//	return nil, errors.Wrap(err, "error setting up video decoder")
-	//}
+func NewStillWriter(ch chan *Still, demuxer *demuxer) (*StillWriter, error) {
+	sw := &StillWriter{
+		stills:    ch,
+		demuxer: demuxer,
+		inputCodecCtx: demuxer.srcVideo.CodecCtx(),
+	}
 
-	return &StillWriter{stills: ch}, nil
+	return sw, nil
 }
